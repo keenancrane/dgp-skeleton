@@ -1,0 +1,86 @@
+#!/usr/bin/perl
+
+# ----------------
+# libddg -- update
+# ----------------
+#
+# Running this script updates dependency lists in the Makefile -- it
+# assumes that include and source files are in ./include/ and ./src/,
+# respectively.  (Note that any existing dependency information will
+# be overwritten!)
+#
+
+`g++ -I./include -I./src -MM src/*.cpp > ___dep`;
+
+@objs = ();
+
+open( IN, "<", "___dep" );
+open( OUT, ">", "___dep2" );
+while( <IN> )
+{
+   if( /\\/ )
+   {
+      chomp;
+      s/\\//g;
+   }
+
+   if( /^(.*)\.o:/ )
+   {
+      $objName = $1;
+      push( @objs, $objName );
+   }
+
+   print OUT;
+}
+close( IN );
+close( OUT );
+
+open( MKIN, "<", "Makefile" );
+open( MKOUT, ">", "___Makefile" );
+$inHead = 1;
+while( <MKIN> )
+{
+   if( $inHead )
+   {
+      print MKOUT $_;
+   }
+
+   if( /^## !!/ )
+   {
+      $inHead = 0;
+   }
+}
+
+print MKOUT "\nOBJS =";
+foreach( @objs )
+{
+   print MKOUT " obj/$_.o";
+}
+print MKOUT "\n\n";
+
+print MKOUT "all: \$\(TARGET\)\n\n";
+
+print MKOUT "\$\(TARGET\): \$\(OBJS\)\n";
+print MKOUT "\t\$\(LD\) \$\(LFLAGS\) \$\(OBJS\) \$\(LIBS\) -o \$\(TARGET\)\n\n";
+
+open( IN, "<", "___dep2" );
+while( <IN> )
+{
+   /^(.*)\.o:/;
+   $objName = $1;
+
+   $_ =~ s/\s+/ /g;
+   print MKOUT "obj/" . $_ . "\n";
+   print MKOUT "\t\$\(CC\) \$\(CFLAGS\) -c src/$objName.cpp -o obj/$objName.o\n\n";
+}
+close( IN );
+
+print MKOUT "\nclean:\n";
+print MKOUT "\trm -f \$\(OBJS\)\n";
+print MKOUT "\trm -f \$\(TARGET\)\n";
+print MKOUT "\trm -f \$\(TARGET\).exe\n\n";
+
+`rm ___dep`;
+`rm ___dep2`;
+`mv ___Makefile Makefile`;
+
